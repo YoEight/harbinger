@@ -24,6 +24,7 @@ common deps
                , safe
 
   other-modules: Harbinger.Command
+                 Harbinger.Command.CheckConnection
 
 library
   import: deps

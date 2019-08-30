@@ -16,10 +16,16 @@ import Options.Applicative
 import Safe (readMay)
 
 --------------------------------------------------------------------------------
+data Setts =
+  Setts
+  { settsHost    :: String
+  , settsTcpPort :: Int
+  } deriving Show
+
+--------------------------------------------------------------------------------
 data Args =
   Args
-  { argsHost    :: String
-  , argsPort    :: Int
+  { argsSetts   :: Setts
   , argsCommand :: Command
   } deriving Show
 
@@ -40,9 +46,14 @@ getArgs = execParser go
 --------------------------------------------------------------------------------
 parseArgs :: Parser Args
 parseArgs =
-  Args <$> parseHost
-       <*> parseTcpPort
+  Args <$> parseSetts
        <*> parseCommand
+
+--------------------------------------------------------------------------------
+parseSetts :: Parser Setts
+parseSetts =
+  Setts <$> parseHost
+        <*> parseTcpPort
 
 --------------------------------------------------------------------------------
 parseHost :: Parser String
