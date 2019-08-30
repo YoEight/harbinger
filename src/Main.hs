@@ -14,8 +14,17 @@ module Main where
 import Prelude hiding (getArgs)
 
 --------------------------------------------------------------------------------
-import Harbinger.Command
+import           Harbinger.Command
+import qualified Harbinger.Command.CheckConnection as CheckConnection
 
 --------------------------------------------------------------------------------
 main :: IO ()
-main = getArgs >>= print
+main = getArgs >>= runCommand
+
+--------------------------------------------------------------------------------
+runCommand :: Args -> IO ()
+runCommand args =
+  case argsCommand args of
+    CheckConnection -> CheckConnection.run setts
+  where
+    setts = argsSetts args
