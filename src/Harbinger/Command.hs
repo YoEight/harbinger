@@ -11,6 +11,8 @@
 module Harbinger.Command where
 
 --------------------------------------------------------------------------------
+import Data.String (fromString)
+import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Options.Applicative
 import Safe (readMay)
@@ -18,8 +20,10 @@ import Safe (readMay)
 --------------------------------------------------------------------------------
 data Setts =
   Setts
-  { settsHost    :: String
-  , settsTcpPort :: Int
+  { settsHost     :: String
+  , settsTcpPort  :: Int
+  , settsLogin    :: Maybe ByteString
+  , settsPassword :: Maybe ByteString
   } deriving Show
 
 --------------------------------------------------------------------------------
@@ -54,6 +58,8 @@ parseSetts :: Parser Setts
 parseSetts =
   Setts <$> parseHost
         <*> parseTcpPort
+        <*> parseLogin
+        <*> parsePassword
 
 --------------------------------------------------------------------------------
 parseHost :: Parser String
@@ -84,6 +90,34 @@ parseTcpPort = option (eitherReader check) go
         Just port
           | port >= 1 && port <= 65535 -> Right port
           | otherwise -> Left $ "Port should be between [1,65535]"
+
+--------------------------------------------------------------------------------
+parseLogin :: Parser (Maybe ByteString)
+parseLogin = option (maybeReader check) go
+  where
+    go = mconcat [ long "login"
+                 , metavar "LOGIN"
+                 , help "Database user login."
+                 , value Nothing
+                 ]
+
+    check str
+      | null str  = Just Nothing
+      | otherwise = Just $ Just $ fromString str
+
+--------------------------------------------------------------------------------
+parsePassword :: Parser (Maybe ByteString)
+parsePassword = option (maybeReader check) go
+  where
+    go = mconcat [ long "password"
+                 , metavar "PASSWORD"
+                 , help "Database user password."
+                 , value Nothing
+                 ]
+
+    check str
+      | null str  = Just Nothing
+      | otherwise = Just $ Just $ fromString str
 
 --------------------------------------------------------------------------------
 parseCommand :: Parser Command
