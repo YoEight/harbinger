@@ -36,6 +36,17 @@ data Args =
 --------------------------------------------------------------------------------
 data Command
   = CheckConnection
+  | List ListCommand
+  deriving Show
+
+--------------------------------------------------------------------------------
+data ListCommand
+  = ListStreams ListStreamsArgs
+  deriving Show
+
+--------------------------------------------------------------------------------
+data ListStreamsArgs =
+  ListStreamsArgs
   deriving Show
 
 --------------------------------------------------------------------------------
@@ -127,6 +138,10 @@ parseCommand =
       [ command "check" $
           go "Checks if a database node is reachable."
             parseCheckConnectionCommand
+
+      , command "list" $
+          go "List specific entities in the database."
+            $ fmap List parseListCommand
       ]
   where
     go desc parser =
@@ -136,3 +151,21 @@ parseCommand =
 --------------------------------------------------------------------------------
 parseCheckConnectionCommand :: Parser Command
 parseCheckConnectionCommand = pure CheckConnection
+
+--------------------------------------------------------------------------------
+parseListCommand :: Parser ListCommand
+parseListCommand =
+  subparser $
+    mconcat
+      [ command "streams" $
+          go "List streams"
+            $ fmap ListStreams parseListStreamsArgs
+      ]
+  where
+    go desc parser =
+      info (helper <*> parser)
+           (progDesc desc)
+
+--------------------------------------------------------------------------------
+parseListStreamsArgs :: Parser ListStreamsArgs
+parseListStreamsArgs = pure ListStreamsArgs
