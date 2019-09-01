@@ -19,6 +19,7 @@ import qualified Database.EventStore as ES
 import           Database.EventStore.Internal.Test (Credentials(..))
 import qualified Database.EventStore.Streaming as ESStream
 import           Data.String.Interpolate.IsString (i)
+import           Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import           Streaming
@@ -34,11 +35,32 @@ run setts args = do
   conn <- createConnection setts
   let stream =
         handleError
-          $ Streaming.map ES.resolvedEventOriginalStreamId
-          $ Streaming.filter unwantedEvents
-          $ ESStream.readThroughForward conn ES.All ES.NoResolveLink ES.positionStart (Just 4_096) Nothing
+          $ Streaming.mapMaybe getStreamName
+          $ ESStream.readThrough conn customReadResultHandler ES.Forward (ES.StreamName "$streams") ES.ResolveLink ES.streamStart (Just 4_096) Nothing
 
   Streaming.print stream
+
+--------------------------------------------------------------------------------
+getStreamName :: ES.ResolvedEvent -> Maybe Text
+getStreamName resolved = do
+  evt <- ES.resolvedEventRecord resolved
+  let name = ES.recordedEventStreamId evt
+
+  when (Text.isPrefixOf "$" name)
+    Nothing
+
+  pure name
+
+--------------------------------------------------------------------------------
+customReadResultHandler :: ESStream.ReadResultHandler
+customReadResultHandler = ESStream.onRegularStream go
+  where
+    go ES.ReadNoStream          = ESStream.FetchError ESStream.NoStream
+    go ES.ReadNotModified       = ESStream.Fetch ES.emptySlice
+    go (ES.ReadStreamDeleted n) = ESStream.FetchError (ESStream.StreamDeleted n)
+    go (ES.ReadError e)         = ESStream.FetchError (ESStream.ReadError e)
+    go (ES.ReadAccessDenied n)  = ESStream.FetchError (ESStream.AccessDenied n)
+    go (ES.ReadSuccess s)       = ESStream.Fetch s
 
 --------------------------------------------------------------------------------
 unwantedEvents :: ES.ResolvedEvent -> Bool
@@ -60,20 +82,25 @@ createConnection setts = ES.connect settings tpe
       }
 
 --------------------------------------------------------------------------------
-handleError :: Stream (Of a) (ExceptT (ESStream.ReadError ES.Position) IO) ()
+handleError :: Show t => Stream (Of a) (ExceptT (ESStream.ReadError t) IO) ()
             -> Stream (Of a) IO ()
 handleError = hoist go
   where
-    go action =
+    go action = do
       runExceptT action >>= \case
         Left e -> do
           case e of
             ESStream.AccessDenied{} ->
               Text.putStrLn
-                "Access denied: your current user doesn't grant access to this operation."
+                "Access denied: You can't list streams with your current user credentials."
+
             ESStream.ReadError causeMay ->
               Text.putStrLn
                 [i|Error occured: #{getReason causeMay}.|]
+
+            ESStream.NoStream ->
+              Text.putStrLn
+                "$streams projection doesn't exist. Enable and start system projections to be able to list streams."
 
           exitFailure
 
@@ -84,7 +111,7 @@ handleError = hoist go
 
 --------------------------------------------------------------------------------
 makeCreds :: Setts -> Maybe ES.Credentials
-makeCreds setts = foldl' go Nothing [0,1]
+makeCreds setts = foldl' go Nothing [0 :: Int,1]
   where
     go acc tpe =
       let creds = fromMaybe (ES.credentials "" "") acc in

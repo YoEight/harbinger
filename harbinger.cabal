@@ -20,7 +20,7 @@ common deps
   build-depends: async
                , base ^>=4.12
                , bytestring
-               , eventstore >=1.3
+               , eventstore
                , interpolate
                , mtl
                , optparse-applicative >=0.15
@@ -33,11 +33,15 @@ common deps
                  Harbinger.Command.CheckConnection
                  Harbinger.Command.ListStreams
 
-  default-extensions: LambdaCase
+  default-extensions: GADTs
+                      LambdaCase
                       NumericUnderscores
                       OverloadedStrings
                       QuasiQuotes
+                      ScopedTypeVariables
                       StrictData
+
+  ghc-options: -Wall
 library
   import: deps
   hs-source-dirs:      src
