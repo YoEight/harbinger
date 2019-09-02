@@ -28,10 +28,12 @@ common deps
                , safe
                , streaming
                , text
+               , time
 
   other-modules: Harbinger.Command
                  Harbinger.Command.CheckConnection
                  Harbinger.Command.ListStreams
+                 Harbinger.Common
 
   default-extensions: GADTs
                       LambdaCase

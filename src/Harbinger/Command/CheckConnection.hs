@@ -20,6 +20,7 @@ import qualified Data.Text.IO as Text
 
 --------------------------------------------------------------------------------
 import Harbinger.Command
+import Harbinger.Common
 
 --------------------------------------------------------------------------------
 run :: Setts -> IO ()
@@ -27,7 +28,7 @@ run setts = do
   let port = settsTcpPort setts
       host = settsHost setts
 
-  conn <- createConnection setts
+  conn <- makeConnection setts
   outcome <- try . Async.wait =<<
     ES.readEventsForward conn ES.All ES.positionStart 1 ES.NoResolveLink Nothing
 
@@ -49,11 +50,8 @@ validCheckOutcome = \case
   Right _ -> True
 
 --------------------------------------------------------------------------------
-createConnection :: Setts -> IO ES.Connection
-createConnection setts = ES.connect settings tpe
+makeConnection :: Setts -> IO ES.Connection
+makeConnection = createConnectionWith go
   where
-    tpe = ES.Static (settsHost setts) (settsTcpPort setts)
-
-    settings =
-      ES.defaultSettings
-      { ES.s_retry = ES.atMost 0 }
+    go settings =
+      settings { ES.s_retry = ES.atMost 0 }

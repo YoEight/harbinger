@@ -14,19 +14,23 @@ module Harbinger.Command where
 import Data.String (fromString)
 import Data.ByteString (ByteString)
 import Data.Text (Text)
+import Data.Time (NominalDiffTime)
+import Database.EventStore (msDiffTime)
 import Options.Applicative
 import Safe (readMay)
 
 --------------------------------------------------------------------------------
 data Setts =
   Setts
-  { settsHost     :: String
-  , settsTcpPort  :: Int
-  , settsLogin    :: Maybe ByteString
+  { settsHost :: String
+  , settsTcpPort :: Int
+  , settsLogin :: Maybe ByteString
   , settsPassword :: Maybe ByteString
+  , settsHeartbeatInterval :: NominalDiffTime
+  , settsHeartbeatTimeout :: NominalDiffTime
   } deriving Show
 
---------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 data Args =
   Args
   { argsSetts   :: Setts
@@ -71,6 +75,8 @@ parseSetts =
         <*> parseTcpPort
         <*> parseLogin
         <*> parsePassword
+        <*> parseHeartbeatInterval
+        <*> parseHeartbeatTimeout
 
 --------------------------------------------------------------------------------
 parseHost :: Parser String
@@ -129,6 +135,42 @@ parsePassword = option (maybeReader check) go
     check str
       | null str  = Just Nothing
       | otherwise = Just $ Just $ fromString str
+
+--------------------------------------------------------------------------------
+parseHeartbeatInterval :: Parser NominalDiffTime
+parseHeartbeatInterval = msDiffTime . fromIntegral <$> option (eitherReader check) go
+  where
+    go = mconcat [ long "heartbeat-interval"
+                 , metavar "INTERVAL"
+                 , help "Connection heartbeat interval in milliseconds."
+                 , value 750
+                 , showDefault
+                 ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid heartbeat interval value, should be a float number."
+        Just value
+          | value >= 1 -> Right value
+          | otherwise -> Left $ "Heartbeat interval should be greater than 0"
+
+--------------------------------------------------------------------------------
+parseHeartbeatTimeout :: Parser NominalDiffTime
+parseHeartbeatTimeout = msDiffTime . fromIntegral <$> option (eitherReader check) go
+  where
+    go = mconcat [ long "heartbeat-timeout"
+                 , metavar "INTERVAL"
+                 , help "Connection heartbeat timeout in milliseconds."
+                 , value 1_500
+                 , showDefault
+                 ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid heartbeat timeout value, should be a float number."
+        Just value
+          | value >= 1 -> Right value
+          | otherwise -> Left $ "Heartbeat timeout should be greater than 0"
 
 --------------------------------------------------------------------------------
 parseCommand :: Parser Command

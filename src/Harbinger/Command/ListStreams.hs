@@ -13,8 +13,6 @@ module Harbinger.Command.ListStreams where
 --------------------------------------------------------------------------------
 import qualified Control.Concurrent.Async as Async
 import           Control.Monad.Except
-import           Data.Foldable (foldl')
-import           Data.Maybe (fromMaybe)
 import qualified Database.EventStore as ES
 import           Database.EventStore.Internal.Test (Credentials(..))
 import qualified Database.EventStore.Streaming as ESStream
@@ -28,6 +26,7 @@ import           System.Exit (exitFailure)
 
 --------------------------------------------------------------------------------
 import Harbinger.Command
+import Harbinger.Common
 
 --------------------------------------------------------------------------------
 run :: Setts -> ListStreamsArgs -> IO ()
@@ -69,19 +68,6 @@ unwantedEvents resolved = not (Text.isPrefixOf "$" (ES.recordedEventType event))
     event = ES.resolvedEventOriginal resolved
 
 --------------------------------------------------------------------------------
-createConnection :: Setts -> IO ES.Connection
-createConnection setts = ES.connect settings tpe
-  where
-    tpe = ES.Static (settsHost setts) (settsTcpPort setts)
-
-    settings =
-      ES.defaultSettings
-      { ES.s_defaultUserCredentials = makeCreds setts
-      , ES.s_heartbeatInterval = ES.msDiffTime 3_000
-      , ES.s_heartbeatTimeout = ES.msDiffTime 6_000
-      }
-
---------------------------------------------------------------------------------
 handleError :: Show t => Stream (Of a) (ExceptT (ESStream.ReadError t) IO) ()
             -> Stream (Of a) IO ()
 handleError = hoist go
@@ -108,19 +94,3 @@ handleError = hoist go
 
     getReason Nothing  = "Unknown"
     getReason (Just e) = e
-
---------------------------------------------------------------------------------
-makeCreds :: Setts -> Maybe ES.Credentials
-makeCreds setts = foldl' go Nothing [0 :: Int,1]
-  where
-    go acc tpe =
-      let creds = fromMaybe (ES.credentials "" "") acc in
-      case tpe of
-        0 ->
-          case settsLogin setts of
-            Nothing    -> acc
-            Just login -> Just creds { credLogin = login }
-        _ ->
-          case settsPassword setts of
-            Nothing  -> acc
-            Just pwd -> Just creds { credPassword = pwd }
