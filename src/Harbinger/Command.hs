@@ -12,8 +12,9 @@
 module Harbinger.Command where
 
 --------------------------------------------------------------------------------
-import Data.String (fromString)
 import Data.ByteString (ByteString)
+import Data.List.NonEmpty (NonEmpty, fromList)
+import Data.String (fromString)
 import Data.String.Interpolate.IsString (i)
 import Data.Text (Text)
 import Data.Time (NominalDiffTime)
@@ -24,8 +25,9 @@ import Safe (readMay)
 --------------------------------------------------------------------------------
 data Setts =
   Setts
-  { settsHost :: String
+  { settsHost :: NonEmpty String
   , settsTcpPort :: Int
+  , settsHttpPort :: Int
   , settsLogin :: Maybe ByteString
   , settsPassword :: Maybe ByteString
   , settsHeartbeatInterval :: NominalDiffTime
@@ -88,8 +90,9 @@ parseArgs =
 --------------------------------------------------------------------------------
 parseSetts :: Parser Setts
 parseSetts =
-  Setts <$> parseHost
+  Setts <$> fmap fromList (some parseHost)
         <*> parseTcpPort
+        <*> parseHttpPort
         <*> parseLogin
         <*> parsePassword
         <*> parseHeartbeatInterval
@@ -100,11 +103,9 @@ parseSetts =
 parseHost :: Parser String
 parseHost = strOption go
   where
-    go = mconcat [ long "tcp-host"
+    go = mconcat [ long "host"
                  , metavar "HOST"
-                 , help "Database host."
-                 , value "localhost"
-                 , showDefault
+                 , help "Database host (default: localhost)"
                  ]
 
 --------------------------------------------------------------------------------
@@ -115,6 +116,25 @@ parseTcpPort = option (eitherReader check) go
                  , metavar "PORT"
                  , help "Database TCP port."
                  , value 1113
+                 , showDefault
+                 ]
+
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid TCP port number"
+        Just port
+          | port >= 1 && port <= 65535 -> Right port
+          | otherwise -> Left $ "Port should be between [1,65535]"
+
+--------------------------------------------------------------------------------
+parseHttpPort :: Parser Int
+parseHttpPort = option (eitherReader check) go
+  where
+    go = mconcat [ long "http-port"
+                 , metavar "PORT"
+                 , help "Database HTTP port."
+                 , value 2113
                  , showDefault
                  ]
 

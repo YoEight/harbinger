@@ -12,6 +12,7 @@ module Harbinger.Common where
 
 --------------------------------------------------------------------------------
 import           Data.Foldable (foldl')
+import           Data.List.NonEmpty (NonEmpty(..))
 import           Data.Maybe (fromMaybe)
 import qualified Database.EventStore as ES
 import           Database.EventStore.Internal.Test (Credentials(..))
@@ -63,5 +64,14 @@ createConnectionWith :: (ES.Settings -> ES.Settings)
                      -> IO ES.Connection
 createConnectionWith k setts = ES.connect (k $ fromSetts setts) tpe
   where
-    tpe = ES.Static (settsHost setts) (settsTcpPort setts)
+    tpe =
+      let host :| rest = settsHost setts in
+        case rest of
+          [] ->
+            ES.Static host (settsTcpPort setts)
+          _  ->
+            ES.Cluster
+              $ ES.gossipSeedClusterSettings
+              $ fmap (flip ES.gossipSeed (settsHttpPort setts))
+              $ settsHost setts
 

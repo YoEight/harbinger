@@ -43,7 +43,7 @@ common deps
                       ScopedTypeVariables
                       StrictData
 
-  ghc-options: -Wall
+  ghc-options: -Wall -threaded -O2
 library
   import: deps
   hs-source-dirs:      src
