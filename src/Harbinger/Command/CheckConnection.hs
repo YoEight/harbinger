@@ -27,8 +27,7 @@ import Harbinger.Common
 run :: Setts -> IO ()
 run setts = do
   let port = settsTcpPort setts
-      gossipPort = settsHttpPort setts
-      hosts = settsHost setts
+      hosts@(host :| rest) = settsHosts setts
 
   conn <- makeConnection setts
   outcome <- try . Async.wait =<<
@@ -36,29 +35,25 @@ run setts = do
 
   if validCheckOutcome outcome
     then
-      case hosts of
-        host :| rest ->
-          if null rest
-            then
-              Text.putStrLn
-                [i|Successfully connected to node #{host}:#{port} through its public TCP port.|]
+      if null rest
+        then
+          Text.putStrLn
+            [i|Successfully connected to node #{host}:#{port} through its public TCP port.|]
 
-            else
-              Text.putStrLn
-                [i|Successfully connected to cluster #{toList hosts} on #{gossipPort} as gossip port.|]
-    else
-      case hosts of
-        host :| rest -> do
-          if null rest
-            then
-              Text.putStrLn
-                [i|Failed to connect node #{host}:#{port} through its public TCP port.|]
+        else
+          Text.putStrLn
+            [i|Successfully connected to cluster #{toList hosts}.|]
+    else do
+      if null rest
+        then
+          Text.putStrLn
+            [i|Failed to connect node #{host}:#{port} through its public TCP port.|]
 
-            else
-              Text.putStrLn
-                [i|Failed to cluster #{toList hosts} on #{gossipPort} as gossip port.|]
+        else
+          Text.putStrLn
+            [i|Failed to cluster #{toList hosts}.|]
 
-          exitFailure
+      exitFailure
 
 --------------------------------------------------------------------------------
 validCheckOutcome :: Either ES.OperationError a -> Bool

@@ -25,9 +25,9 @@ import Safe (readMay)
 --------------------------------------------------------------------------------
 data Setts =
   Setts
-  { settsHost :: NonEmpty String
+  { settsHosts :: NonEmpty String
   , settsTcpPort :: Int
-  , settsHttpPort :: Int
+  , settsHttpPorts :: NonEmpty Int
   , settsLogin :: Maybe ByteString
   , settsPassword :: Maybe ByteString
   , settsHeartbeatInterval :: NominalDiffTime
@@ -92,7 +92,7 @@ parseSetts :: Parser Setts
 parseSetts =
   Setts <$> fmap makeHostList (many parseHost)
         <*> parseTcpPort
-        <*> parseHttpPort
+        <*> fmap makePortList (many parseHttpPort)
         <*> parseLogin
         <*> parsePassword
         <*> parseHeartbeatInterval
@@ -102,13 +102,16 @@ parseSetts =
     makeHostList (h:hs) = h :| hs
     makeHostList _ = "localhost" :| []
 
+    makePortList (p:ps) = p :| ps
+    makePortList _ = 2113 :| []
+
 --------------------------------------------------------------------------------
 parseHost :: Parser String
 parseHost = strOption go
   where
     go = mconcat [ long "host"
                  , metavar "HOST"
-                 , help "Database host (default: localhost)"
+                 , help "Database host (default: localhost)."
                  ]
 
 --------------------------------------------------------------------------------
@@ -136,11 +139,9 @@ parseHttpPort = option (eitherReader check) go
   where
     go = mconcat [ long "http-port"
                  , metavar "PORT"
-                 , help "Database HTTP port."
-                 , value 2113
+                 , help "Database HTTP port (default: 2113)."
                  , showDefault
                  ]
-
 
     check input =
       case readMay input of

@@ -13,6 +13,7 @@ module Harbinger.Common where
 --------------------------------------------------------------------------------
 import           Data.Foldable (foldl')
 import           Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Maybe (fromMaybe)
 import qualified Database.EventStore as ES
 import           Database.EventStore.Internal.Test (Credentials(..))
@@ -64,14 +65,23 @@ createConnectionWith :: (ES.Settings -> ES.Settings)
                      -> IO ES.Connection
 createConnectionWith k setts = ES.connect (k $ fromSetts setts) tpe
   where
+    hosts@(host :| rest) = settsHosts setts
+    ports@(port :| _) = settsHttpPorts setts
+
+    hostLen = length hosts
+    portLen = length ports
+
     tpe =
-      let host :| rest = settsHost setts in
-        case rest of
-          [] ->
-            ES.Static host (settsTcpPort setts)
-          _  ->
-            ES.Cluster
-              $ ES.gossipSeedClusterSettings
-              $ fmap (flip ES.gossipSeed (settsHttpPort setts))
-              $ settsHost setts
+      case rest of
+        [] ->
+          ES.Static host (settsTcpPort setts)
+        _  ->
+          ES.Cluster $ ES.gossipSeedClusterSettings makeGossipSeeds
+
+    makeGossipSeeds
+      | hostLen == portLen = NonEmpty.zipWith ES.gossipSeed hosts ports
+      | hostLen == 1 = fmap (ES.gossipSeed host) ports
+      | portLen == 1 = fmap (flip ES.gossipSeed port) hosts
+      -- FIXME - Don't use non total function!
+      | otherwise = error "Unsupported host/port cluster configuration."
 
