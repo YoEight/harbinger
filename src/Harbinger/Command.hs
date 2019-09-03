@@ -13,7 +13,7 @@ module Harbinger.Command where
 
 --------------------------------------------------------------------------------
 import Data.ByteString (ByteString)
-import Data.List.NonEmpty (NonEmpty, fromList)
+import Data.List.NonEmpty (NonEmpty(..), fromList)
 import Data.String (fromString)
 import Data.String.Interpolate.IsString (i)
 import Data.Text (Text)
@@ -90,7 +90,7 @@ parseArgs =
 --------------------------------------------------------------------------------
 parseSetts :: Parser Setts
 parseSetts =
-  Setts <$> fmap fromList (some parseHost)
+  Setts <$> fmap makeHostList (many parseHost)
         <*> parseTcpPort
         <*> parseHttpPort
         <*> parseLogin
@@ -98,6 +98,9 @@ parseSetts =
         <*> parseHeartbeatInterval
         <*> parseHeartbeatTimeout
         <*> parseVerbose
+  where
+    makeHostList (h:hs) = h :| hs
+    makeHostList _ = "localhost" :| []
 
 --------------------------------------------------------------------------------
 parseHost :: Parser String

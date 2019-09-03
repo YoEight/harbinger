@@ -14,9 +14,10 @@ module Harbinger.Command.CheckConnection (run) where
 import           Control.Exception.Safe (try)
 import qualified Control.Concurrent.Async as Async
 import qualified Database.EventStore as ES
+import           Data.List.NonEmpty (NonEmpty(..), toList)
 import           Data.String.Interpolate.IsString (i)
-import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
+import           System.Exit (exitFailure)
 
 --------------------------------------------------------------------------------
 import Harbinger.Command
@@ -26,7 +27,8 @@ import Harbinger.Common
 run :: Setts -> IO ()
 run setts = do
   let port = settsTcpPort setts
-      host = settsHost setts
+      gossipPort = settsHttpPort setts
+      hosts = settsHost setts
 
   conn <- makeConnection setts
   outcome <- try . Async.wait =<<
@@ -34,11 +36,29 @@ run setts = do
 
   if validCheckOutcome outcome
     then
-      Text.putStrLn
-        [i|Successfully connected to node #{host}:#{port} through its public TCP port.|]
+      case hosts of
+        host :| rest ->
+          if null rest
+            then
+              Text.putStrLn
+                [i|Successfully connected to node #{host}:#{port} through its public TCP port.|]
+
+            else
+              Text.putStrLn
+                [i|Successfully connected to cluster #{toList hosts} on #{gossipPort} as gossip port.|]
     else
-      Text.putStrLn
-        [i|Failed to connect node #{host}:#{port} through its public TCP port.|]
+      case hosts of
+        host :| rest -> do
+          if null rest
+            then
+              Text.putStrLn
+                [i|Failed to connect node #{host}:#{port} through its public TCP port.|]
+
+            else
+              Text.putStrLn
+                [i|Failed to cluster #{toList hosts} on #{gossipPort} as gossip port.|]
+
+          exitFailure
 
 --------------------------------------------------------------------------------
 validCheckOutcome :: Either ES.OperationError a -> Bool
