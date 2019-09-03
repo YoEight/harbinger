@@ -72,10 +72,10 @@ createConnectionWith k setts = ES.connect (k $ fromSetts setts) tpe
     portLen = length ports
 
     tpe =
-      case rest of
-        [] ->
+      if hostLen == 1 && portLen == 1
+        then
           ES.Static host (settsTcpPort setts)
-        _  ->
+        else
           ES.Cluster $ ES.gossipSeedClusterSettings makeGossipSeeds
 
     makeGossipSeeds
