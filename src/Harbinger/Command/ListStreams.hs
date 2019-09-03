@@ -37,7 +37,7 @@ run setts args = do
           $ Streaming.mapMaybe (getStreamName args)
           $ ESStream.readThrough conn customReadResultHandler ES.Forward (ES.StreamName "$streams") ES.ResolveLink ES.streamStart (Just 4_096) Nothing
 
-  Streaming.print stream
+  Streaming.mapM_ Text.putStrLn stream
 
 --------------------------------------------------------------------------------
 getStreamName :: ListStreamsArgs -> ES.ResolvedEvent -> Maybe Text
