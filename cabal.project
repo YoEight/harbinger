@@ -3,4 +3,4 @@ packages: ./
 source-repository-package
     type: git
     location: https://github.com/YoEight/eventstore.git
-    tag: 55bbd3aa144d9910c8d8ab3c9724941b0ed31d52
+    tag: 5278fb703807f3f56d16231ebd73ba21147166ee
