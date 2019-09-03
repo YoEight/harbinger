@@ -1,3 +1,4 @@
+{-# LANGUAGE QuasiQuotes #-}
 --------------------------------------------------------------------------------
 -- |
 -- Module    :  Harbinger.Command
@@ -13,6 +14,7 @@ module Harbinger.Command where
 --------------------------------------------------------------------------------
 import Data.String (fromString)
 import Data.ByteString (ByteString)
+import Data.String.Interpolate.IsString (i)
 import Data.Text (Text)
 import Data.Time (NominalDiffTime)
 import Database.EventStore (msDiffTime)
@@ -28,6 +30,7 @@ data Setts =
   , settsPassword :: Maybe ByteString
   , settsHeartbeatInterval :: NominalDiffTime
   , settsHeartbeatTimeout :: NominalDiffTime
+  , settsVerbose :: Bool
   } deriving Show
 
 -------------------------------------------------------------------------------
@@ -49,8 +52,22 @@ data ListCommand
   deriving Show
 
 --------------------------------------------------------------------------------
+data TargettedStreams
+  = UserStreams
+  | SystemStreams
+  | AllStreams
+  deriving (Enum, Bounded)
+
+--------------------------------------------------------------------------------
+instance Show TargettedStreams where
+  show UserStreams = "user"
+  show SystemStreams = "system"
+  show AllStreams = "all"
+
+--------------------------------------------------------------------------------
 data ListStreamsArgs =
   ListStreamsArgs
+  { listStreamArgsTarget :: TargettedStreams }
   deriving Show
 
 --------------------------------------------------------------------------------
@@ -77,6 +94,7 @@ parseSetts =
         <*> parsePassword
         <*> parseHeartbeatInterval
         <*> parseHeartbeatTimeout
+        <*> parseVerbose
 
 --------------------------------------------------------------------------------
 parseHost :: Parser String
@@ -173,6 +191,14 @@ parseHeartbeatTimeout = msDiffTime . fromIntegral <$> option (eitherReader check
           | otherwise -> Left $ "Heartbeat timeout should be greater than 0"
 
 --------------------------------------------------------------------------------
+parseVerbose :: Parser Bool
+parseVerbose = flag False True go
+  where
+    go = mconcat [ long "verbose"
+                 , help "Enable verbose mode. Harbinger will display a lot of logging."
+                 ]
+
+--------------------------------------------------------------------------------
 parseCommand :: Parser Command
 parseCommand =
   subparser $
@@ -210,4 +236,26 @@ parseListCommand =
 
 --------------------------------------------------------------------------------
 parseListStreamsArgs :: Parser ListStreamsArgs
-parseListStreamsArgs = pure ListStreamsArgs
+parseListStreamsArgs =
+  ListStreamsArgs
+    <$> parseListStreamsTarget
+
+--------------------------------------------------------------------------------
+parseListStreamsTarget :: Parser TargettedStreams
+parseListStreamsTarget = option (eitherReader check) go
+  where
+    check "user" = Right UserStreams
+    check "system" = Right SystemStreams
+    check "all" = Right AllStreams
+    check wrong =
+      Left [i|Wrong stream target value, supported values are: #{supported}|]
+
+    supported :: [TargettedStreams]
+    supported = [minBound..maxBound]
+
+    go = mconcat [ long "target"
+                 , metavar "TARGET"
+                 , help [i|Type of streams your are looking for, supported values are: #{supported}.|]
+                 , value UserStreams
+                 , showDefault
+                 ]

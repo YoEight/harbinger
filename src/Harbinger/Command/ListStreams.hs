@@ -34,18 +34,23 @@ run setts args = do
   conn <- createConnection setts
   let stream =
         handleError
-          $ Streaming.mapMaybe getStreamName
+          $ Streaming.mapMaybe (getStreamName args)
           $ ESStream.readThrough conn customReadResultHandler ES.Forward (ES.StreamName "$streams") ES.ResolveLink ES.streamStart (Just 4_096) Nothing
 
   Streaming.print stream
 
 --------------------------------------------------------------------------------
-getStreamName :: ES.ResolvedEvent -> Maybe Text
-getStreamName resolved = do
+getStreamName :: ListStreamsArgs -> ES.ResolvedEvent -> Maybe Text
+getStreamName args resolved = do
   evt <- ES.resolvedEventRecord resolved
   let name = ES.recordedEventStreamId evt
+      predicate =
+        case listStreamArgsTarget args of
+          UserStreams -> not . Text.isPrefixOf "$"
+          SystemStreams -> Text.isPrefixOf "$"
+          AllStreams -> const True
 
-  when (Text.isPrefixOf "$" name)
+  unless (predicate name)
     Nothing
 
   pure name

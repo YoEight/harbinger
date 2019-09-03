@@ -21,12 +21,21 @@ import Harbinger.Command
 
 ---------------------------------------------------------------------------------
 fromSetts :: Setts -> ES.Settings
-fromSetts setts =
-  ES.defaultSettings
-  { ES.s_heartbeatInterval = settsHeartbeatInterval setts
-  , ES.s_heartbeatTimeout = settsHeartbeatTimeout setts
-  , ES.s_defaultUserCredentials = makeCreds setts
-  }
+fromSetts setts = go seed
+  where
+    seed =
+      ES.defaultSettings
+      { ES.s_heartbeatInterval = settsHeartbeatInterval setts
+      , ES.s_heartbeatTimeout = settsHeartbeatTimeout setts
+      , ES.s_defaultUserCredentials = makeCreds setts
+      }
+
+    go settings =
+      if settsVerbose setts
+        then settings { ES.s_loggerType = ES.LogStdout 0
+                      , ES.s_loggerFilter = ES.LoggerLevel ES.LevelDebug
+                      }
+        else settings
 
 --------------------------------------------------------------------------------
 makeCreds :: Setts -> Maybe ES.Credentials
