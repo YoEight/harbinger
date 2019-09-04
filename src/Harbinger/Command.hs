@@ -69,7 +69,9 @@ instance Show TargettedStreams where
 --------------------------------------------------------------------------------
 data ListStreamsArgs =
   ListStreamsArgs
-  { listStreamArgsTarget :: TargettedStreams }
+  { listStreamArgsTarget :: TargettedStreams
+  , listStreamArgsRecent :: Bool
+  }
   deriving Show
 
 --------------------------------------------------------------------------------
@@ -263,6 +265,7 @@ parseListStreamsArgs :: Parser ListStreamsArgs
 parseListStreamsArgs =
   ListStreamsArgs
     <$> parseListStreamsTarget
+    <*> parseListStreamsRecent
 
 --------------------------------------------------------------------------------
 parseListStreamsTarget :: Parser TargettedStreams
@@ -282,4 +285,12 @@ parseListStreamsTarget = option (eitherReader check) go
                  , help [i|Type of streams your are looking for, supported values are: #{supported}.|]
                  , value UserStreams
                  , showDefault
+                 ]
+
+--------------------------------------------------------------------------------
+parseListStreamsRecent :: Parser Bool
+parseListStreamsRecent = flag False True go
+  where
+    go = mconcat [ long "recent"
+                 , help "Only display recently created streams (last 50)."
                  ]

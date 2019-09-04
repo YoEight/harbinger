@@ -35,9 +35,17 @@ run setts args = do
   let stream =
         handleError
           $ Streaming.mapMaybe (getStreamName args)
-          $ ESStream.readThrough conn customReadResultHandler ES.Forward (ES.StreamName "$streams") ES.ResolveLink ES.streamStart (Just 4_096) Nothing
+          $ source conn
 
   Streaming.mapM_ Text.putStrLn stream
+  where
+    source conn =
+      if listStreamArgsRecent args
+        then
+          Streaming.take 50 $
+          ESStream.readThrough conn customReadResultHandler ES.Backward (ES.StreamName "$streams") ES.ResolveLink ES.streamEnd (Just 50) Nothing
+        else
+          ESStream.readThrough conn customReadResultHandler ES.Forward (ES.StreamName "$streams") ES.ResolveLink ES.streamStart (Just 4_096) Nothing
 
 --------------------------------------------------------------------------------
 getStreamName :: ListStreamsArgs -> ES.ResolvedEvent -> Maybe Text
