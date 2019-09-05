@@ -16,6 +16,7 @@ import Prelude hiding (getArgs)
 --------------------------------------------------------------------------------
 import           Harbinger.Command
 import qualified Harbinger.Command.CheckConnection as CheckConnection
+import qualified Harbinger.Command.ListEvents as ListEvents
 import qualified Harbinger.Command.ListStreams as ListStreams
 
 --------------------------------------------------------------------------------
@@ -29,6 +30,7 @@ runCommand args =
     CheckConnection -> CheckConnection.run setts
     List cmd ->
       case cmd of
+        ListEvents args -> ListEvents.run setts args
         ListStreams args -> ListStreams.run setts args
   where
     setts = argsSetts args

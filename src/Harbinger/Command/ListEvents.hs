@@ -1,7 +1,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 --------------------------------------------------------------------------------
 -- |
--- Module    :  Harbinger.Command.ListStreams
+-- Module    :  Harbinger.Command.ListEvents
 -- Copyright :  (C) 2019 Yorick Laupa
 -- License   :  (see the file LICENSE)
 -- Maintainer:  Yorick Laupa <yo.eight@gmail.com>
@@ -9,11 +9,15 @@
 -- Portability: non-portable
 --
 --------------------------------------------------------------------------------
-module Harbinger.Command.ListStreams where
+module Harbinger.Command.ListEvents where
 
 --------------------------------------------------------------------------------
 import qualified Control.Concurrent.Async as Async
 import           Control.Monad.Except
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Encode.Pretty as Pretty
+import qualified Data.ByteString.Lazy.Char8 as LazyChar8
+import           Data.Int (Int32)
 import qualified Database.EventStore as ES
 import           Database.EventStore.Internal.Test (Credentials(..))
 import qualified Database.EventStore.Streaming as ESStream
@@ -30,8 +34,8 @@ import Harbinger.Command
 import Harbinger.Common
 
 --------------------------------------------------------------------------------
-toBatch :: StreamListing -> Batch ES.EventNumber
-toBatch tpe =
+toBatch :: EventListingArgs -> Batch ES.EventNumber
+toBatch args =
   Batch
   { batchStream = streamName
   , batchDirection = direction
@@ -40,16 +44,7 @@ toBatch tpe =
   }
 
   where
-    streamName =
-      case tpe of
-        UserStreams _ ->
-          ES.StreamName "$streams"
-
-        ByCategory args ->
-          ES.StreamName [i|$ce-#{byCategoryArgsName args}|]
-
-        ByType args ->
-          ES.StreamName [i|$et-#{byTypeArgsName args}|]
+    streamName = ES.StreamName (eventListingArgsStream args)
 
     start =
       if recent
@@ -66,11 +61,34 @@ toBatch tpe =
         then ES.Backward
         else ES.Forward
 
-    recent =
-      case tpe of
-        UserStreams args -> userStreamsArgsRecent args
-        ByCategory args -> byCategoryArgsRecent args
-        ByType args -> byTypeArgsRecent args
+    recent = eventListingArgsRecent args
+
+--------------------------------------------------------------------------------
+run :: Setts -> EventListingArgs -> IO ()
+run setts args = do
+  conn <- createConnection setts
+  let batch = toBatch args
+      stream =
+        handleError batch
+          $ Streaming.mapMaybe ES.resolvedEventRecord
+          $ buildSource conn (toBatch args)
+
+  Streaming.mapM_ formatEvent stream
+
+--------------------------------------------------------------------------------
+formatEvent :: ES.RecordedEvent -> IO ()
+formatEvent e = do
+  let Just (value :: Aeson.Value) = Aeson.decodeStrict (ES.recordedEventData e)
+
+  Text.putStrLn "--------------------------------------------"
+  Text.putStrLn [i|EventNumber: #{ES.recordedEventNumber e} |]
+  Text.putStrLn [i|EventId: #{ES.recordedEventId e} |]
+  Text.putStrLn [i|Type: #{ES.recordedEventType e} |]
+  Text.putStrLn [i|Stream: #{ES.recordedEventStreamId e} |]
+  Text.putStrLn [i|Created: #{ES.recordedEventCreated e} |]
+  Text.putStrLn "Payload:"
+  LazyChar8.putStrLn (Pretty.encodePretty value)
+  Text.putStrLn ""
 
 --------------------------------------------------------------------------------
 buildSource :: ES.Connection
@@ -97,31 +115,6 @@ buildSource conn b = transform src
         Nothing
 
 --------------------------------------------------------------------------------
-run :: Setts -> StreamListing -> IO ()
-run setts args = do
-  conn <- createConnection setts
-  let batch = toBatch args
-      stream =
-        handleError batch
-          $ Streaming.mapMaybe (getStreamName args)
-          $ buildSource conn (toBatch args)
-
-  Streaming.mapM_ Text.putStrLn stream
-
---------------------------------------------------------------------------------
-getStreamName :: StreamListing -> ES.ResolvedEvent -> Maybe Text
-getStreamName args resolved = do
-  evt <- ES.resolvedEventRecord resolved
-  let name = ES.recordedEventStreamId evt
-      predicate =
-          not . Text.isPrefixOf "$"
-
-  unless (predicate name)
-    Nothing
-
-  pure name
-
---------------------------------------------------------------------------------
 customReadResultHandler :: ESStream.ReadResultHandler
 customReadResultHandler = ESStream.onRegularStream go
   where
@@ -131,12 +124,6 @@ customReadResultHandler = ESStream.onRegularStream go
     go (ES.ReadError e)         = ESStream.FetchError (ESStream.ReadError e)
     go (ES.ReadAccessDenied n)  = ESStream.FetchError (ESStream.AccessDenied n)
     go (ES.ReadSuccess s)       = ESStream.Fetch s
-
---------------------------------------------------------------------------------
-unwantedEvents :: ES.ResolvedEvent -> Bool
-unwantedEvents resolved = not (Text.isPrefixOf "$" (ES.recordedEventType event))
-  where
-    event = ES.resolvedEventOriginal resolved
 
 --------------------------------------------------------------------------------
 handleError :: forall t a. Show t

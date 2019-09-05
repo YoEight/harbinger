@@ -51,6 +51,7 @@ data Command
 --------------------------------------------------------------------------------
 data ListCommand
   = ListStreams StreamListing
+  | ListEvents EventListingArgs
   deriving Show
 
 --------------------------------------------------------------------------------
@@ -59,6 +60,29 @@ data StreamListing
   | ByCategory ByCategoryArgs
   | ByType ByTypeArgs
   deriving Show
+
+--------------------------------------------------------------------------------
+data EventListingArgs =
+  EventListingArgs
+  { eventListingArgsStream :: Text
+  , eventListingArgsRecent :: Bool
+  } deriving Show
+
+--------------------------------------------------------------------------------
+data ParkedMessagesStreamArgs =
+  ParkedMessagesStreamArgs
+  { parkedMessagesStreamsArgsStream :: Text
+  , parkedMessagesStreamsArgsGroupId :: Text
+  , parkedMessagesStreamsArgsRecent :: Bool
+  }
+
+--------------------------------------------------------------------------------
+data CheckpointStreamArgs =
+  CheckpointStreamArgs
+  { checkpointStreamsArgsStream :: Text
+  , checkpointStreamsArgsGroupId :: Text
+  , checkpointStreamsArgsRecent :: Bool
+  }
 
 --------------------------------------------------------------------------------
 data UserStreamsArgs =
@@ -259,6 +283,8 @@ parseListCommand =
     mconcat
       [ command "streams" $
           go "List streams" parseStreamListingCommand
+      , command "events" $
+          go "List events" parseEventListingArgs
       ]
   where
     go desc parser =
@@ -322,6 +348,7 @@ parseListStreamsRecent = flag False True go
     go = mconcat [ long "recent"
                  , help "Only displays recently created streams (last 50)."
                  ]
+
 --------------------------------------------------------------------------------
 parseCategoryName :: Parser Text
 parseCategoryName = strOption go
@@ -338,4 +365,99 @@ parseTypeName = strOption go
     go = mconcat [ long "type"
                  , metavar "TYPE"
                  , help "Type of events."
+                 ]
+
+--------------------------------------------------------------------------------
+parseEventListingArgs :: Parser ListCommand
+parseEventListingArgs = fmap ListEvents (withCommand <|> parseStreamEvents)
+  where
+    parseStreamEvents =
+      EventListingArgs
+        <$> parseStreamName
+        <*> parseRecentEvents
+
+    withCommand =
+      subparser $
+        mconcat
+          [ command "parked" $
+            go "List parked events of a persistent subscription." $
+              fmap parkedMessagesToEventListingArgs parseParkedMessagesStreamArgs
+
+          , command "checkpoint" $
+            go "List checkpoint of a persistent subscription." $
+              fmap checkpointToEventListingArgs parseCheckpointStreamArgs
+
+          , command "stream" $
+            go "List events of a stream" parseStreamEvents
+          ]
+
+    go desc parser =
+      info (helper <*> parser)
+           (progDesc desc)
+
+--------------------------------------------------------------------------------
+parseParkedMessagesStreamArgs :: Parser ParkedMessagesStreamArgs
+parseParkedMessagesStreamArgs =
+  ParkedMessagesStreamArgs
+    <$> parseStreamId
+    <*> parseGroupId
+    <*> parseRecentEvents
+
+--------------------------------------------------------------------------------
+parseCheckpointStreamArgs :: Parser CheckpointStreamArgs
+parseCheckpointStreamArgs =
+  CheckpointStreamArgs
+    <$> parseStreamId
+    <*> parseGroupId
+    <*> parseRecentEvents
+
+--------------------------------------------------------------------------------
+parkedMessagesToEventListingArgs :: ParkedMessagesStreamArgs -> EventListingArgs
+parkedMessagesToEventListingArgs args =
+  EventListingArgs
+  { eventListingArgsStream = [i|$persistentsubscription-#{parkedMessagesStreamsArgsStream args}::#{parkedMessagesStreamsArgsGroupId args}-parked|]
+  , eventListingArgsRecent = parkedMessagesStreamsArgsRecent args
+  }
+
+--------------------------------------------------------------------------------
+checkpointToEventListingArgs :: CheckpointStreamArgs -> EventListingArgs
+checkpointToEventListingArgs args =
+  EventListingArgs
+  { eventListingArgsStream = [i|$persistentsubscription-#{checkpointStreamsArgsStream args}::#{checkpointStreamsArgsGroupId args}-checkpoint|]
+  , eventListingArgsRecent = checkpointStreamsArgsRecent args
+  }
+
+--------------------------------------------------------------------------------
+parseRecentEvents :: Parser Bool
+parseRecentEvents = flag False True go
+  where
+    go = mconcat [ long "recent"
+                 , help "Only displays recently created events (last 50)."
+                 ]
+
+--------------------------------------------------------------------------------
+parseStreamName :: Parser Text
+parseStreamName = strOption go
+  where
+    go = mconcat [ long "name"
+                 , metavar "NAME"
+                 , help "Name of the stream."
+                 ]
+
+--------------------------------------------------------------------------------
+parseStreamId :: Parser Text
+parseStreamId = strOption go
+  where
+    go = mconcat [ long "stream"
+                 , metavar "NAME"
+                 , help "Name of the stream."
+                 ]
+
+--------------------------------------------------------------------------------
+parseGroupId :: Parser Text
+parseGroupId = strOption go
+  where
+    go = mconcat [ long "group-id"
+                 , metavar "NAME"
+                 , help "Name of the persistent subscription group."
                  ]

@@ -17,7 +17,9 @@ category:            Database
 extra-source-files:  CHANGELOG.md, README.md
 
 common deps
-  build-depends: async
+  build-depends: aeson
+               , aeson-pretty >=0.8
+               , async
                , base ^>=4.12
                , bytestring
                , eventstore
@@ -32,6 +34,7 @@ common deps
 
   other-modules: Harbinger.Command
                  Harbinger.Command.CheckConnection
+                 Harbinger.Command.ListEvents
                  Harbinger.Command.ListStreams
                  Harbinger.Common
 

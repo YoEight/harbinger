@@ -12,6 +12,7 @@ module Harbinger.Common where
 
 --------------------------------------------------------------------------------
 import           Data.Foldable (foldl')
+import           Data.Int (Int32)
 import           Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Maybe (fromMaybe)
@@ -20,6 +21,15 @@ import           Database.EventStore.Internal.Test (Credentials(..))
 
 --------------------------------------------------------------------------------
 import Harbinger.Command
+
+--------------------------------------------------------------------------------
+data Batch t =
+  Batch
+  { batchStream :: ES.StreamId t
+  , batchDirection :: ES.ReadDirection
+  , batchStart :: t
+  , batchCount :: Maybe Int32
+  }
 
 ---------------------------------------------------------------------------------
 fromSetts :: Setts -> ES.Settings
