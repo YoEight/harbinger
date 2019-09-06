@@ -17,6 +17,7 @@ import           Control.Monad.Except
 import qualified Database.EventStore as ES
 import           Database.EventStore.Internal.Test (Credentials(..))
 import qualified Database.EventStore.Streaming as ESStream
+import           Data.Maybe (isJust)
 import           Data.String.Interpolate.IsString (i)
 import           Data.Text (Text)
 import qualified Data.Text as Text
@@ -52,25 +53,22 @@ toBatch tpe =
           ES.StreamName [i|$et-#{byTypeArgsName args}|]
 
     start =
-      if recent
+      if isJust top
         then ES.streamEnd
         else ES.streamStart
 
-    count =
-      if recent
-        then Just 50
-        else Nothing
+    count = fmap fromIntegral top
 
     direction =
-      if recent
+      if isJust top
         then ES.Backward
         else ES.Forward
 
-    recent =
+    top =
       case tpe of
-        UserStreams args -> userStreamsArgsRecent args
-        ByCategory args -> byCategoryArgsRecent args
-        ByType args -> byTypeArgsRecent args
+        UserStreams args -> userStreamsArgsTop args
+        ByCategory args -> byCategoryArgsTop args
+        ByType args -> byTypeArgsTop args
 
 --------------------------------------------------------------------------------
 buildSource :: ES.Connection

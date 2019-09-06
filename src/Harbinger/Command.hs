@@ -65,7 +65,7 @@ data StreamListing
 data EventListingArgs =
   EventListingArgs
   { eventListingArgsStream :: Text
-  , eventListingArgsRecent :: Bool
+  , eventListingArgsTop :: Maybe Int
   } deriving Show
 
 --------------------------------------------------------------------------------
@@ -73,7 +73,7 @@ data ParkedMessagesStreamArgs =
   ParkedMessagesStreamArgs
   { parkedMessagesStreamsArgsStream :: Text
   , parkedMessagesStreamsArgsGroupId :: Text
-  , parkedMessagesStreamsArgsRecent :: Bool
+  , parkedMessagesStreamsArgsTop :: Maybe Int
   }
 
 --------------------------------------------------------------------------------
@@ -81,27 +81,27 @@ data CheckpointStreamArgs =
   CheckpointStreamArgs
   { checkpointStreamsArgsStream :: Text
   , checkpointStreamsArgsGroupId :: Text
-  , checkpointStreamsArgsRecent :: Bool
+  , checkpointStreamsArgsTop :: Maybe Int
   }
 
 --------------------------------------------------------------------------------
 data UserStreamsArgs =
   UserStreamsArgs
-  { userStreamsArgsRecent :: Bool
+  { userStreamsArgsTop :: Maybe Int
   } deriving Show
 
 --------------------------------------------------------------------------------
 data ByCategoryArgs =
   ByCategoryArgs
   { byCategoryArgsName :: Text
-  , byCategoryArgsRecent :: Bool
+  , byCategoryArgsTop :: Maybe Int
   } deriving Show
 
 --------------------------------------------------------------------------------
 data ByTypeArgs =
   ByTypeArgs
   { byTypeArgsName :: Text
-  , byTypeArgsRecent :: Bool
+  , byTypeArgsTop :: Maybe Int
   } deriving Show
 
 --------------------------------------------------------------------------------
@@ -325,29 +325,37 @@ parseStreamListingCommand = fmap ListStreams (withCommand <|> noCommand)
 parseUserStreamsArgs :: Parser StreamListing
 parseUserStreamsArgs = fmap UserStreams
   UserStreamsArgs
-    <$> parseListStreamsRecent
+    <$> parseTop
 
 --------------------------------------------------------------------------------
 parseByCategoryStreamListing :: Parser StreamListing
 parseByCategoryStreamListing = fmap ByCategory $
   ByCategoryArgs
     <$> parseCategoryName
-    <*> parseListStreamsRecent
+    <*> parseTop
 
 --------------------------------------------------------------------------------
 parseByTypeStreamListing :: Parser StreamListing
 parseByTypeStreamListing = fmap ByType $
   ByTypeArgs
     <$> parseTypeName
-    <*> parseListStreamsRecent
+    <*> parseTop
 
 --------------------------------------------------------------------------------
-parseListStreamsRecent :: Parser Bool
-parseListStreamsRecent = flag False True go
+parseTop :: Parser (Maybe Int)
+parseTop = option (eitherReader check) go
   where
-    go = mconcat [ long "recent"
-                 , help "Only displays recently created streams (last 50)."
+    go = mconcat [ long "top"
+                 , help "Only displays recently created elements."
+                 , value Nothing
                  ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Top value must be a strictly positive value."
+        Just value
+          | value >= 1 -> Right (Just value)
+          | otherwise  -> Left "Top value must be a strictly positive value."
 
 --------------------------------------------------------------------------------
 parseCategoryName :: Parser Text
@@ -374,7 +382,7 @@ parseEventListingArgs = fmap ListEvents (withCommand <|> parseStreamEvents)
     parseStreamEvents =
       EventListingArgs
         <$> parseStreamName
-        <*> parseRecentEvents
+        <*> parseTop
 
     withCommand =
       subparser $
@@ -401,7 +409,7 @@ parseParkedMessagesStreamArgs =
   ParkedMessagesStreamArgs
     <$> parseStreamId
     <*> parseGroupId
-    <*> parseRecentEvents
+    <*> parseTop
 
 --------------------------------------------------------------------------------
 parseCheckpointStreamArgs :: Parser CheckpointStreamArgs
@@ -409,14 +417,14 @@ parseCheckpointStreamArgs =
   CheckpointStreamArgs
     <$> parseStreamId
     <*> parseGroupId
-    <*> parseRecentEvents
+    <*> parseTop
 
 --------------------------------------------------------------------------------
 parkedMessagesToEventListingArgs :: ParkedMessagesStreamArgs -> EventListingArgs
 parkedMessagesToEventListingArgs args =
   EventListingArgs
   { eventListingArgsStream = [i|$persistentsubscription-#{parkedMessagesStreamsArgsStream args}::#{parkedMessagesStreamsArgsGroupId args}-parked|]
-  , eventListingArgsRecent = parkedMessagesStreamsArgsRecent args
+  , eventListingArgsTop = parkedMessagesStreamsArgsTop args
   }
 
 --------------------------------------------------------------------------------
@@ -424,16 +432,8 @@ checkpointToEventListingArgs :: CheckpointStreamArgs -> EventListingArgs
 checkpointToEventListingArgs args =
   EventListingArgs
   { eventListingArgsStream = [i|$persistentsubscription-#{checkpointStreamsArgsStream args}::#{checkpointStreamsArgsGroupId args}-checkpoint|]
-  , eventListingArgsRecent = checkpointStreamsArgsRecent args
+  , eventListingArgsTop = checkpointStreamsArgsTop args
   }
-
---------------------------------------------------------------------------------
-parseRecentEvents :: Parser Bool
-parseRecentEvents = flag False True go
-  where
-    go = mconcat [ long "recent"
-                 , help "Only displays recently created events (last 50)."
-                 ]
 
 --------------------------------------------------------------------------------
 parseStreamName :: Parser Text

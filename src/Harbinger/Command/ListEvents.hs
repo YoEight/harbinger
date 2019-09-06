@@ -18,6 +18,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encode.Pretty as Pretty
 import qualified Data.ByteString.Lazy.Char8 as LazyChar8
 import           Data.Int (Int32)
+import           Data.Maybe (isJust)
 import qualified Database.EventStore as ES
 import           Database.EventStore.Internal.Test (Credentials(..))
 import qualified Database.EventStore.Streaming as ESStream
@@ -47,21 +48,18 @@ toBatch args =
     streamName = ES.StreamName (eventListingArgsStream args)
 
     start =
-      if recent
+      if isJust top
         then ES.streamEnd
         else ES.streamStart
 
-    count =
-      if recent
-        then Just 50
-        else Nothing
+    count = fmap fromIntegral top
 
     direction =
-      if recent
+      if isJust top
         then ES.Backward
         else ES.Forward
 
-    recent = eventListingArgsRecent args
+    top = eventListingArgsTop args
 
 --------------------------------------------------------------------------------
 run :: Setts -> EventListingArgs -> IO ()
@@ -98,11 +96,20 @@ buildSource conn b = transform src
   where
     transform =
       case batchCount b of
-        -- TODO - Might not be the right thing to do in a the future
-        -- depending if users wanted to set a specific max count or a different
-        -- buffer batch size.
-        Just c  -> Streaming.take (fromIntegral c)
+        Just c -> Streaming.take (fromIntegral c)
         Nothing -> id
+
+    -- TODO - The user might be interested in supplying their own buffer size
+    -- value.
+    bufferSize =
+      case batchCount b of
+        -- If the user asks for less than the buffer size, we only take
+        -- what they asked for.
+        Just c
+          | c <= 500 -> Just c
+          | otherwise -> Nothing
+        Nothing -> Nothing
+
     src =
       ESStream.readThrough
         conn
@@ -111,7 +118,7 @@ buildSource conn b = transform src
         (batchStream b)
         ES.ResolveLink
         (batchStart b)
-        (batchCount b)
+        bufferSize
         Nothing
 
 --------------------------------------------------------------------------------
