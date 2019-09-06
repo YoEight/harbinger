@@ -49,9 +49,6 @@ toBatch tpe =
         ByCategory args ->
           ES.StreamName [i|$ce-#{byCategoryArgsName args}|]
 
-        ByType args ->
-          ES.StreamName [i|$et-#{byTypeArgsName args}|]
-
     start =
       if isJust top
         then ES.streamEnd
@@ -68,7 +65,6 @@ toBatch tpe =
       case tpe of
         UserStreams args -> userStreamsArgsTop args
         ByCategory args -> byCategoryArgsTop args
-        ByType args -> byTypeArgsTop args
 
 --------------------------------------------------------------------------------
 buildSource :: ES.Connection

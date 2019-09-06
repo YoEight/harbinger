@@ -58,7 +58,6 @@ data ListCommand
 data StreamListing
   = UserStreams UserStreamsArgs
   | ByCategory ByCategoryArgs
-  | ByType ByTypeArgs
   deriving Show
 
 --------------------------------------------------------------------------------
@@ -308,12 +307,6 @@ parseStreamListingCommand = fmap ListStreams (withCommand <|> noCommand)
                  "user-*".
                |] parseByCategoryStreamListing
 
-          -- , command "by-type" $
-          --   go [i|List all events by a specfic type. For example, if you pass
-          --        "foo-type", Harbinger will display every event having "foo-type"
-          --        as a type, regardless of their original stream.
-          --      |] parseByTypeStreamListing
-
           , command "of-users" $
             go [i|List all streams created by users. Commonly those starting by '$'.
             |] parseUserStreamsArgs
@@ -335,8 +328,8 @@ parseByCategoryStreamListing = fmap ByCategory $
     <*> parseTop
 
 --------------------------------------------------------------------------------
-parseByTypeStreamListing :: Parser StreamListing
-parseByTypeStreamListing = fmap ByType $
+parseByTypeArgs :: Parser ByTypeArgs
+parseByTypeArgs =
   ByTypeArgs
     <$> parseTypeName
     <*> parseTop
@@ -397,6 +390,12 @@ parseEventListingArgs = fmap ListEvents (withCommand <|> parseStreamEvents)
 
           , command "stream" $
             go "List events of a stream" parseStreamEvents
+
+          , command "by-type" $
+            go [i|List all events by a specfic type. For example, if you pass
+                 "foo-type", Harbinger will display every event having "foo-type"
+                 as a type, regardless of their original stream.
+               |] $ fmap typeToEventListingArgs parseByTypeArgs
           ]
 
     go desc parser =
@@ -433,6 +432,14 @@ checkpointToEventListingArgs args =
   EventListingArgs
   { eventListingArgsStream = [i|$persistentsubscription-#{checkpointStreamsArgsStream args}::#{checkpointStreamsArgsGroupId args}-checkpoint|]
   , eventListingArgsTop = checkpointStreamsArgsTop args
+  }
+
+--------------------------------------------------------------------------------
+typeToEventListingArgs :: ByTypeArgs -> EventListingArgs
+typeToEventListingArgs args =
+  EventListingArgs
+  { eventListingArgsStream = [i|$et-#{byTypeArgsName args}|]
+  , eventListingArgsTop = byTypeArgsTop args
   }
 
 --------------------------------------------------------------------------------
