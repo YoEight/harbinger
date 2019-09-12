@@ -52,6 +52,7 @@ data Command
 data ListCommand
   = ListStreams StreamListing
   | ListEvents EventListingArgs
+  | ListSub SubListingArgs
   deriving Show
 
 --------------------------------------------------------------------------------
@@ -65,6 +66,13 @@ data EventListingArgs =
   EventListingArgs
   { eventListingArgsStream :: Text
   , eventListingArgsTop :: Maybe Int
+  } deriving Show
+
+--------------------------------------------------------------------------------
+data SubListingArgs =
+  SubListingArgs
+  { subListingArgsStream :: Text
+  , subListingArgsGroup :: Text
   } deriving Show
 
 --------------------------------------------------------------------------------
@@ -284,6 +292,8 @@ parseListCommand =
           go "List streams" parseStreamListingCommand
       , command "events" $
           go "List events" parseEventListingArgs
+      , command "subscription" $
+          go "Show a persistent subscription information" parseSubListingArgs
       ]
   where
     go desc parser =
@@ -468,3 +478,10 @@ parseGroupId = strOption go
                  , metavar "NAME"
                  , help "Name of the persistent subscription group."
                  ]
+
+--------------------------------------------------------------------------------
+parseSubListingArgs :: Parser ListCommand
+parseSubListingArgs = fmap ListSub $
+  SubListingArgs
+    <$> parseStreamId
+    <*> parseGroupId

@@ -23,11 +23,15 @@ common deps
                , base ^>=4.12
                , bytestring
                , eventstore
+               , http-client
+               , http-types
                , interpolate
                , mtl
                , optparse-applicative >=0.15
                , safe-exceptions
                , safe
+               , servant
+               , servant-client >= 0.16
                , streaming
                , text
                , time
@@ -36,7 +40,9 @@ common deps
                  Harbinger.Command.CheckConnection
                  Harbinger.Command.ListEvents
                  Harbinger.Command.ListStreams
+                 Harbinger.Command.ListSub
                  Harbinger.Common
+                 Harbinger.Http
 
   default-extensions: GADTs
                       LambdaCase

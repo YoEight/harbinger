@@ -11,6 +11,7 @@
 module Harbinger.Common where
 
 --------------------------------------------------------------------------------
+import           Data.ByteString (ByteString)
 import           Data.Foldable (foldl')
 import           Data.Int (Int32)
 import           Data.List.NonEmpty (NonEmpty(..))
@@ -21,6 +22,13 @@ import           Database.EventStore.Internal.Test (Credentials(..))
 
 --------------------------------------------------------------------------------
 import Harbinger.Command
+
+--------------------------------------------------------------------------------
+data User =
+  User
+  { userLogin :: ByteString
+  , userPassword :: ByteString
+  }
 
 --------------------------------------------------------------------------------
 data Batch t =
@@ -48,6 +56,13 @@ fromSetts setts = go seed
                       , ES.s_loggerFilter = ES.LoggerLevel ES.LevelDebug
                       }
         else settings
+
+--------------------------------------------------------------------------------
+makeUser :: Setts -> Maybe User
+makeUser = fmap go . makeCreds
+  where
+    go c =
+      User (credLogin c) (credPassword c)
 
 --------------------------------------------------------------------------------
 makeCreds :: Setts -> Maybe ES.Credentials
