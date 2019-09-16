@@ -73,6 +73,7 @@ data SubListingArgs =
   SubListingArgs
   { subListingArgsStream :: Text
   , subListingArgsGroup :: Text
+  , subListingArgsDetailed :: Bool
   } deriving Show
 
 --------------------------------------------------------------------------------
@@ -485,3 +486,13 @@ parseSubListingArgs = fmap ListSub $
   SubListingArgs
     <$> parseStreamId
     <*> parseGroupId
+    <*> parseDetailed
+
+--------------------------------------------------------------------------------
+parseDetailed :: Parser Bool
+parseDetailed = flag False True go
+  where
+    go = mconcat [ long "detailed"
+                 , help "Make the command display as much information as possible"
+                 ]
+
