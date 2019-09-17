@@ -46,6 +46,7 @@ data Args =
 data Command
   = CheckConnection
   | List ListCommand
+  | Version
   deriving Show
 
 --------------------------------------------------------------------------------
@@ -265,18 +266,20 @@ parseVerbose = flag False True go
 
 --------------------------------------------------------------------------------
 parseCommand :: Parser Command
-parseCommand =
-  subparser $
-    mconcat
-      [ command "check" $
-          go "Checks if a database node is reachable."
-            parseCheckConnectionCommand
-
-      , command "list" $
-          go "List specific entities in the database."
-            $ fmap List parseListCommand
-      ]
+parseCommand = withCommand <|> parseVersion
   where
+    withCommand =
+      subparser $
+        mconcat
+          [ command "check" $
+              go "Checks if a database node is reachable."
+                parseCheckConnectionCommand
+
+          , command "list" $
+              go "List specific entities in the database."
+                $ fmap List parseListCommand
+          ]
+
     go desc parser =
       info (helper <*> parser)
            (progDesc desc)
@@ -498,4 +501,11 @@ parseDetailed = flag False True go
     go = mconcat [ long "detailed"
                  , help "Make the command display as much information as possible"
                  ]
-
+--------------------------------------------------------------------------------
+parseVersion :: Parser Command
+parseVersion = flag' Version go
+  where
+    go = mconcat [ long "version"
+                 , short 'v'
+                 , help "Program version."
+                 ]

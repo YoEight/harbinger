@@ -20,6 +20,7 @@ import qualified Harbinger.Command.ListEvents as ListEvents
 import qualified Harbinger.Command.ListStreams as ListStreams
 import qualified Harbinger.Command.ListSub as ListSub
 import qualified Harbinger.Command.ListSubs as ListSubs
+import qualified Harbinger.Command.Version as Version
 
 --------------------------------------------------------------------------------
 main :: IO ()
@@ -30,6 +31,7 @@ runCommand :: Args -> IO ()
 runCommand args =
   case argsCommand args of
     CheckConnection -> CheckConnection.run setts
+    Version -> Version.run
     List cmd ->
       case cmd of
         ListEvents args -> ListEvents.run setts args
