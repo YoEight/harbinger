@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TemplateHaskell  #-}
 {-# LANGUAGE TypeOperators    #-}
 --------------------------------------------------------------------------------
 -- |
@@ -17,7 +18,9 @@ module Harbinger.Http where
 import Control.Exception (throwIO)
 import Control.Monad.Error (MonadError(..))
 import Data.Aeson (Value)
+import Data.Aeson.TH
 import qualified Data.List.NonEmpty as NonEmpty
+import Data.Int (Int64)
 import Data.Proxy (Proxy(..))
 import Data.Text (Text)
 import Network.HTTP.Client (newManager, defaultManagerSettings)
@@ -26,6 +29,7 @@ import Servant.API
 import Servant.Client hiding (Client)
 
 --------------------------------------------------------------------------------
+import Harbinger.Aeson (defaultAesonOptions)
 import Harbinger.Command
 import Harbinger.Common
 
@@ -48,14 +52,31 @@ basicAuthData = maybe defaultData go . _clientUser
 data AccessDenied = AccessDenied deriving Show
 
 --------------------------------------------------------------------------------
+data SubscriptionSummary =
+  SubscriptionSummary
+  { subscriptionSummaryEventStreamId :: Text
+  , subscriptionSummaryGroupName :: Text
+  , subscriptionSummaryStatus :: Text
+  , subscriptionSummaryAverageItemsPerSecond :: Double
+  , subscriptionSummaryLastProcessedEventNumber :: Int64
+  , subscriptionSummaryLastKnownEventNumber :: Int64
+  , subscriptionSummaryConnectionCount :: Int64
+  }
+
+--------------------------------------------------------------------------------
+$(deriveJSON (defaultAesonOptions "subscriptionSummary") ''SubscriptionSummary)
+
+--------------------------------------------------------------------------------
 type API = BasicAuth "EventStore Node" User :> "subscriptions" :> Capture "stream" Text :> Capture "group" Text :> "info" :> Get '[JSON] Value
+      :<|> BasicAuth "EventStore Node" User :> "subscriptions" :> Get '[JSON] [SubscriptionSummary]
 
 --------------------------------------------------------------------------------
 proxyAPI :: Proxy API
 proxyAPI = Proxy
 
 --------------------------------------------------------------------------------
-subscriptionInfo = client proxyAPI
+subscriptionInfo
+  :<|> listSubscriptions = client proxyAPI
 
 --------------------------------------------------------------------------------
 runQuery :: Client -> ClientM a -> IO a
@@ -107,3 +128,8 @@ makeClient setts = do
 getSubscriptionInfo :: Client -> Text -> Text -> IO (Either AccessDenied (Maybe Value))
 getSubscriptionInfo env stream groupId =
   runQuery env (restricted $ optional $ subscriptionInfo (basicAuthData env) stream groupId)
+
+--------------------------------------------------------------------------------
+getSubscriptionList :: Client -> IO (Either AccessDenied [SubscriptionSummary])
+getSubscriptionList env =
+  runQuery env (restricted $ listSubscriptions (basicAuthData env))

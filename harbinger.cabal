@@ -36,11 +36,13 @@ common deps
                , text
                , time
 
-  other-modules: Harbinger.Command
+  other-modules: Harbinger.Aeson
+                 Harbinger.Command
                  Harbinger.Command.CheckConnection
                  Harbinger.Command.ListEvents
                  Harbinger.Command.ListStreams
                  Harbinger.Command.ListSub
+                 Harbinger.Command.ListSubs
                  Harbinger.Common
                  Harbinger.Http
 

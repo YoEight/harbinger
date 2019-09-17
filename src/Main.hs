@@ -19,6 +19,7 @@ import qualified Harbinger.Command.CheckConnection as CheckConnection
 import qualified Harbinger.Command.ListEvents as ListEvents
 import qualified Harbinger.Command.ListStreams as ListStreams
 import qualified Harbinger.Command.ListSub as ListSub
+import qualified Harbinger.Command.ListSubs as ListSubs
 
 --------------------------------------------------------------------------------
 main :: IO ()
@@ -34,5 +35,6 @@ runCommand args =
         ListEvents args -> ListEvents.run setts args
         ListStreams args -> ListStreams.run setts args
         ListSub args -> ListSub.run setts args
+        ListSubs -> ListSubs.run setts
   where
     setts = argsSetts args

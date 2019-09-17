@@ -53,6 +53,7 @@ data ListCommand
   = ListStreams StreamListing
   | ListEvents EventListingArgs
   | ListSub SubListingArgs
+  | ListSubs
   deriving Show
 
 --------------------------------------------------------------------------------
@@ -295,6 +296,8 @@ parseListCommand =
           go "List events" parseEventListingArgs
       , command "subscription" $
           go "Show a persistent subscription information" parseSubListingArgs
+      , command "subscriptions" $
+          go "List persistent subscriptions" (pure ListSubs)
       ]
   where
     go desc parser =

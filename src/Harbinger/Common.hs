@@ -12,8 +12,10 @@ module Harbinger.Common where
 
 --------------------------------------------------------------------------------
 import           Data.ByteString (ByteString)
+import           Data.Char (toLower, isUpper)
 import           Data.Foldable (foldl')
 import           Data.Int (Int32)
+import           Data.List (stripPrefix)
 import           Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Maybe (fromMaybe)
@@ -110,3 +112,27 @@ createConnectionWith k setts = ES.connect (k $ fromSetts setts) tpe
       -- FIXME - Don't use non total function!
       | otherwise = error "Unsupported host/port cluster configuration."
 
+--------------------------------------------------------------------------------
+-- | Strips the given prefix from a field name and if the remaining string
+--   starts with an upper letter, it will map it to its lower counterpart.
+--
+--   @stripFieldWith "_foo" "_fooField" == "field"@
+--   @stripFieldWith "_foo" "Field" == "Field"@
+stripFieldWith :: String -> String -> String
+stripFieldWith prefix = go
+  where
+    go field =
+        case stripPrefix prefix field of
+            Just rest ->
+                case rest of
+                    (x:xs)
+                        | isUpper x -> toLower x : xs
+                        | otherwise -> rest
+                    _ -> rest
+            _ -> field
+
+--------------------------------------------------------------------------------
+-- | Makes the first character lower-case
+toLowercase :: String -> String
+toLowercase (x : xs) = toLower x : xs
+toLowercase xs = xs
