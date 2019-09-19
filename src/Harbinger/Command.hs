@@ -13,6 +13,7 @@ module Harbinger.Command where
 
 --------------------------------------------------------------------------------
 import Data.ByteString (ByteString)
+import Data.Int (Int64, Int32)
 import Data.List.NonEmpty (NonEmpty(..), fromList)
 import Data.String (fromString)
 import Data.String.Interpolate.IsString (i)
@@ -46,6 +47,7 @@ data Args =
 data Command
   = CheckConnection
   | List ListCommand
+  | Create CreateCommand
   | Version
   deriving Show
 
@@ -56,6 +58,10 @@ data ListCommand
   | ListSub SubListingArgs
   | ListSubs
   deriving Show
+
+--------------------------------------------------------------------------------
+data CreateCommand
+  = CreateSub SubCreateArgs
 
 --------------------------------------------------------------------------------
 data StreamListing
@@ -113,6 +119,11 @@ data ByTypeArgs =
   { byTypeArgsName :: Text
   , byTypeArgsTop :: Maybe Int
   } deriving Show
+
+--------------------------------------------------------------------------------
+data SubCreateArgs =
+  SubCreateArgs
+
 
 --------------------------------------------------------------------------------
 getArgs :: IO Args
@@ -509,3 +520,108 @@ parseVersion = flag' Version go
                  , short 'v'
                  , help "Program version."
                  ]
+
+--------------------------------------------------------------------------------
+parseResolveLinkTos :: Parser Bool
+parseResolveLinkTos = flag False True go
+  where
+    go = mconcat [ long "resolve-link"
+                 , help "Whether or not the persistent subscription should resolve linkTo events to their linked events."
+                 ]
+
+--------------------------------------------------------------------------------
+parseStartFrom :: Parser Int64
+parseStartFrom = option (eitherReader check) go
+  where
+    go = mconcat [ long "start-from"
+                 , metavar "EVENT_NUMBER"
+                 , help "Where the subscription should start from (think event number)."
+                 , value (-1)
+                 , showDefault
+                 ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid start from value, should be an integer."
+        Just value -> Right value
+
+--------------------------------------------------------------------------------
+parseExtraStats :: Parser Bool
+parseExtraStats = flag False True go
+  where
+    go = mconcat [ long "extra-stats"
+                 , help "Whether or not in depth latency statistics should be tracked on this subscription."
+                 ]
+
+--------------------------------------------------------------------------------
+parseTimeout :: Parser TimeSpan
+parseTimeout = fmap fromSecs $ option (eitherReader check) go
+  where
+    go = mconcat [ long "timeout"
+                 , metavar "SECONDS"
+                 , help "The amount of time after which a message should be considered to be timeout and retried."
+                 , value 30.0
+                 , showDefault
+                 ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid timeout value, should be a float number."
+        Just value
+          | value >= 0 -> Right value
+          | otherwise -> Left "Timeout value should be a positive float number."
+
+--------------------------------------------------------------------------------
+parseMaxRetryCount :: Parser Int32
+parseMaxRetryCount = option (eitherReader check) go
+  where
+    go = mconcat [ long "max-retry"
+                 , metavar "INTEGER"
+                 , help "The maximum number of retries (due to timeout) before a message get considered to be parked."
+                 , value 10
+                 , showDefault
+                 ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid max retry value, should be a number."
+        Just value
+          | value >= 0 -> Right value
+          | otherwise -> Left "Max retry value should be a positive number."
+
+--------------------------------------------------------------------------------
+parseLiveBufSize :: Parser Int32
+parseLiveBufSize = option (eitherReader check) go
+  where
+    go = mconcat [ long "live-buffer-size"
+                 , metavar "INTEGER"
+                 , help "The size of the buffer listening to live messages as they happen."
+                 , value 500
+                 , showDefault
+                 ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid Live buffer size value, should be a number."
+        Just value
+          | value >= 0 -> Right value
+          | otherwise -> Left "Live buffer size value should be a positive number."
+
+--------------------------------------------------------------------------------
+parseReadBatchSize :: Parser Int32
+parseReadBatchSize = option (eitherReader check) go
+  where
+    go = mconcat [ long "read-batch-size"
+                 , metavar "INTEGER"
+                 , help "The number of events read at a time when paging in history."
+                 , value 500
+                 , showDefault
+                 ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid Read batch size value, should be a number."
+        Just value
+          | value >= 0 -> Right value
+          | otherwise -> Left "Read batch size value should be a positive number."
+
