@@ -13,12 +13,15 @@ module Harbinger.Command where
 
 --------------------------------------------------------------------------------
 import Data.ByteString (ByteString)
+import Data.Int (Int64, Int32)
+import Data.List (foldl1)
 import Data.List.NonEmpty (NonEmpty(..), fromList)
 import Data.String (fromString)
 import Data.String.Interpolate.IsString (i)
 import Data.Text (Text)
 import Data.Time (NominalDiffTime)
-import Database.EventStore (msDiffTime)
+import Database.EventStore (SystemConsumerStrategy(..), PersistentSubscriptionSettings(..), msDiffTime)
+import Data.DotNet.TimeSpan (TimeSpan, fromSeconds)
 import Options.Applicative
 import Safe (readMay)
 
@@ -46,6 +49,7 @@ data Args =
 data Command
   = CheckConnection
   | List ListCommand
+  | Create CreateCommand
   | Version
   deriving Show
 
@@ -55,6 +59,11 @@ data ListCommand
   | ListEvents EventListingArgs
   | ListSub SubListingArgs
   | ListSubs
+  deriving Show
+
+--------------------------------------------------------------------------------
+data CreateCommand
+  = CreateSub SubCreateArgs
   deriving Show
 
 --------------------------------------------------------------------------------
@@ -112,6 +121,14 @@ data ByTypeArgs =
   ByTypeArgs
   { byTypeArgsName :: Text
   , byTypeArgsTop :: Maybe Int
+  } deriving Show
+
+--------------------------------------------------------------------------------
+data SubCreateArgs =
+  SubCreateArgs
+  { subCreateArgsStreamName :: Text
+  , subCreateArgsGroup :: Text
+  , subCreateArgsSettings :: PersistentSubscriptionSettings
   } deriving Show
 
 --------------------------------------------------------------------------------
@@ -278,6 +295,10 @@ parseCommand = withCommand <|> parseVersion
           , command "list" $
               go "List specific entities in the database."
                 $ fmap List parseListCommand
+
+          , command "create" $
+              go "Create database entities."
+                $ fmap Create parseCreateCommand
           ]
 
     go desc parser =
@@ -301,6 +322,20 @@ parseListCommand =
           go "Show a persistent subscription information" parseSubListingArgs
       , command "subscriptions" $
           go "List persistent subscriptions" (pure ListSubs)
+      ]
+  where
+    go desc parser =
+      info (helper <*> parser)
+           (progDesc desc)
+
+--------------------------------------------------------------------------------
+parseCreateCommand :: Parser CreateCommand
+parseCreateCommand =
+  subparser $
+    mconcat
+      [ command "subscription" $
+          go "Create a persistent subscription" $
+            fmap CreateSub parseSubCreateArgs
       ]
   where
     go desc parser =
@@ -509,3 +544,246 @@ parseVersion = flag' Version go
                  , short 'v'
                  , help "Program version."
                  ]
+
+--------------------------------------------------------------------------------
+parseSubCreateArgs :: Parser SubCreateArgs
+parseSubCreateArgs =
+  SubCreateArgs
+    <$> parseStreamId
+    <*> parseGroupId
+    <*> parsePersistentSubscriptionSettings
+
+--------------------------------------------------------------------------------
+parsePersistentSubscriptionSettings :: Parser PersistentSubscriptionSettings
+parsePersistentSubscriptionSettings =
+  PersistentSubscriptionSettings
+    <$> parseResolveLinkTos
+    <*> parseStartFrom
+    <*> parseExtraStats
+    <*> parseTimeout
+    <*> parseMaxRetryCount
+    <*> parseLiveBufSize
+    <*> parseReadBatchSize
+    <*> parseHistoryBufSize
+    <*> parseCheckPointAfter
+    <*> parseMinCheckPointCount
+    <*> parseMaxCheckPointCount
+    <*> parseMaxSubsCount
+    <*> parseNamedConsumerStrategy
+
+--------------------------------------------------------------------------------
+parseResolveLinkTos :: Parser Bool
+parseResolveLinkTos = flag False True go
+  where
+    go = mconcat [ long "resolve-link"
+                 , help "Whether or not the persistent subscription should resolve linkTo events to their linked events."
+                 ]
+
+--------------------------------------------------------------------------------
+parseStartFrom :: Parser Int64
+parseStartFrom = option (eitherReader check) go
+  where
+    go = mconcat [ long "start-from"
+                 , metavar "EVENT_NUMBER"
+                 , help "Where the subscription should start from (think event number)."
+                 , value (-1)
+                 , showDefault
+                 ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid start from value, should be an integer."
+        Just value -> Right value
+
+--------------------------------------------------------------------------------
+parseExtraStats :: Parser Bool
+parseExtraStats = flag False True go
+  where
+    go = mconcat [ long "extra-stats"
+                 , help "Whether or not in depth latency statistics should be tracked on this subscription."
+                 ]
+
+--------------------------------------------------------------------------------
+parseTimeout :: Parser TimeSpan
+parseTimeout = fmap fromSeconds $ option (eitherReader check) go
+  where
+    go = mconcat [ long "timeout"
+                 , metavar "SECONDS"
+                 , help "The amount of time after which a message should be considered to be timeout and retried."
+                 , value 30.0
+                 , showDefault
+                 ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid timeout value, should be a float number."
+        Just value
+          | value >= 0 -> Right value
+          | otherwise -> Left "Timeout value should be a positive float number."
+
+--------------------------------------------------------------------------------
+parseMaxRetryCount :: Parser Int32
+parseMaxRetryCount = option (eitherReader check) go
+  where
+    go = mconcat [ long "max-retry"
+                 , metavar "INTEGER"
+                 , help "The maximum number of retries (due to timeout) before a message get considered to be parked."
+                 , value 10
+                 , showDefault
+                 ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid max retry value, should be a number."
+        Just value
+          | value >= 0 -> Right value
+          | otherwise -> Left "Max retry value should be a positive number."
+
+--------------------------------------------------------------------------------
+parseLiveBufSize :: Parser Int32
+parseLiveBufSize = option (eitherReader check) go
+  where
+    go = mconcat [ long "live-buffer-size"
+                 , metavar "INTEGER"
+                 , help "The size of the buffer listening to live messages as they happen."
+                 , value 500
+                 , showDefault
+                 ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid Live buffer size value, should be a number."
+        Just value
+          | value >= 0 -> Right value
+          | otherwise -> Left "Live buffer size value should be a positive number."
+
+--------------------------------------------------------------------------------
+parseReadBatchSize :: Parser Int32
+parseReadBatchSize = option (eitherReader check) go
+  where
+    go = mconcat [ long "read-batch-size"
+                 , metavar "INTEGER"
+                 , help "The number of events read at a time when paging in history."
+                 , value 500
+                 , showDefault
+                 ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid Read batch size value, should be a number."
+        Just value
+          | value >= 0 -> Right value
+          | otherwise -> Left "Read batch size value should be a positive number."
+
+--------------------------------------------------------------------------------
+parseHistoryBufSize :: Parser Int32
+parseHistoryBufSize = option (eitherReader check) go
+  where
+    go = mconcat [ long "history-buffer-size"
+                 , metavar "INTEGER"
+                 , help "The number of events to cache when paging through history."
+                 , value 20
+                 , showDefault
+                 ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid history buffer size value, should be a number."
+        Just value
+          | value >= 0 -> Right value
+          | otherwise -> Left "Read history buffer size value should be a positive number."
+
+--------------------------------------------------------------------------------
+parseCheckPointAfter :: Parser TimeSpan
+parseCheckPointAfter = fmap fromSeconds $ option (eitherReader check) go
+  where
+    go = mconcat [ long "checkpoint-after"
+                 , metavar "SECONDS"
+                 , help "The amount of time to try checkpoint after."
+                 , value 2.0
+                 , showDefault
+                 ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid checkpoint after value, should be a float number."
+        Just value
+          | value >= 0 -> Right value
+          | otherwise -> Left "Checkpoint after value should be a positive float number."
+
+--------------------------------------------------------------------------------
+parseMinCheckPointCount :: Parser Int32
+parseMinCheckPointCount = option (eitherReader check) go
+  where
+    go = mconcat [ long "min-checkpoint-count"
+                 , metavar "INTEGER"
+                 , help "The minimum number of messages to checkpoint."
+                 , value 10
+                 , showDefault
+                 ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid minimum checkpoint count value, should be a number."
+        Just value
+          | value >= 0 -> Right value
+          | otherwise -> Left "Minimum checkpoint count value should be a positive number."
+
+--------------------------------------------------------------------------------
+parseMaxCheckPointCount :: Parser Int32
+parseMaxCheckPointCount = option (eitherReader check) go
+  where
+    go = mconcat [ long "max-checkpoint-count"
+                 , metavar "INTEGER"
+                 , help "The maximum number of messages to checkpoint. If this number is reached, a checkpoint will be forced."
+                 , value 1_000
+                 , showDefault
+                 ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid maximum checkpoint count value, should be a number."
+        Just value
+          | value >= 0 -> Right value
+          | otherwise -> Left "Maximum checkpoint count value should be a positive number."
+
+--------------------------------------------------------------------------------
+parseMaxSubsCount :: Parser Int32
+parseMaxSubsCount = option (eitherReader check) go
+  where
+    go = mconcat [ long "max-subscriber-count"
+                 , metavar "INTEGER"
+                 , help "The maximum number of subscribers allowed."
+                 , value 1_000
+                 , showDefault
+                 ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid maximum subscriber count value, should be a number."
+        Just value
+          | value >= 0 -> Right value
+          | otherwise -> Left "Maximum subscriber count value should be a positive number."
+
+--------------------------------------------------------------------------------
+parseNamedConsumerStrategy :: Parser SystemConsumerStrategy
+parseNamedConsumerStrategy = option (eitherReader check) go
+  where
+    go = mconcat [ long "strategy"
+                 , metavar "STRATEGY_NAME"
+                 , help [i|The strategy to use for distributing events to client consumers. Possibilities: #{display choices}|]
+                 , value RoundRobin
+                 , showDefaultWith showing
+                 ]
+
+    check "dispatch-to-single" = Right DispatchToSingle
+    check "round-robin" = Right RoundRobin
+    check "pinned" = Left "Pinned is Unsupported for the moment."
+    check other = Left [i|Unsupported [#{other} strategy.]|]
+
+    showing RoundRobin = "round-robin"
+    showing DispatchToSingle = "dispatch-to-single"
+
+    choices = [DispatchToSingle, RoundRobin]
+
+    display = foldl1 (\a b -> a <> ", " <> b) . fmap showing
