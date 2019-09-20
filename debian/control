@@ -1,0 +1,15 @@
+Source: harbinger
+Section: unknown
+Priority: optional
+Maintainer: Yorick Laupa <yo.eight@gmail.com>
+Build-Depends: debhelper (>= 10)
+Standards-Version: 4.1.2
+Homepage: https://github.com/YoEight/harbinger
+#Vcs-Git: https://anonscm.debian.org/git/collab-maint/harbinger.git
+#Vcs-Browser: https://anonscm.debian.org/cgit/collab-maint/harbinger.git
+
+Package: harbinger
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: An EventStore administration tool. 
+ An EventStore administration tool. 

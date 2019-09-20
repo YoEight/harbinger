@@ -1,0 +1,13 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+clean:
+	cabal new-clean
+
+check:
+
+override_dh_auto_build:
+	cabal new-update
+	cabal new-build
