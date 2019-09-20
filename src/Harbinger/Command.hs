@@ -19,7 +19,8 @@ import Data.String (fromString)
 import Data.String.Interpolate.IsString (i)
 import Data.Text (Text)
 import Data.Time (NominalDiffTime)
-import Database.EventStore (msDiffTime)
+import Database.EventStore (SystemConsumerStrategy(..), PersistentSubscriptionSettings(..), msDiffTime)
+import Data.DotNet.TimeSpan (TimeSpan, fromSeconds)
 import Options.Applicative
 import Safe (readMay)
 
@@ -61,7 +62,8 @@ data ListCommand
 
 --------------------------------------------------------------------------------
 data CreateCommand
-  = CreateSub SubCreateArgs
+  = CreateSub PersistentSubscriptionSettings
+  deriving Show
 
 --------------------------------------------------------------------------------
 data StreamListing
@@ -123,6 +125,7 @@ data ByTypeArgs =
 --------------------------------------------------------------------------------
 data SubCreateArgs =
   SubCreateArgs
+  deriving Show
 
 
 --------------------------------------------------------------------------------
@@ -522,6 +525,24 @@ parseVersion = flag' Version go
                  ]
 
 --------------------------------------------------------------------------------
+parseCreateSub :: Parser PersistentSubscriptionSettings
+parseCreateSub =
+  PersistentSubscriptionSettings
+    <$> parseResolveLinkTos
+    <*> parseStartFrom
+    <*> parseExtraStats
+    <*> parseTimeout
+    <*> parseMaxRetryCount
+    <*> parseLiveBufSize
+    <*> parseReadBatchSize
+    <*> parseHistoryBufSize
+    <*> parseCheckPointAfter
+    <*> parseMinCheckPointCount
+    <*> parseMaxCheckPointCount
+    <*> parseMaxSubsCount
+    <*> parseNamedConsumerStrategy
+
+--------------------------------------------------------------------------------
 parseResolveLinkTos :: Parser Bool
 parseResolveLinkTos = flag False True go
   where
@@ -555,7 +576,7 @@ parseExtraStats = flag False True go
 
 --------------------------------------------------------------------------------
 parseTimeout :: Parser TimeSpan
-parseTimeout = fmap fromSecs $ option (eitherReader check) go
+parseTimeout = fmap fromSeconds $ option (eitherReader check) go
   where
     go = mconcat [ long "timeout"
                  , metavar "SECONDS"
@@ -625,3 +646,108 @@ parseReadBatchSize = option (eitherReader check) go
           | value >= 0 -> Right value
           | otherwise -> Left "Read batch size value should be a positive number."
 
+--------------------------------------------------------------------------------
+parseHistoryBufSize :: Parser Int32
+parseHistoryBufSize = option (eitherReader check) go
+  where
+    go = mconcat [ long "history-buffer-size"
+                 , metavar "INTEGER"
+                 , help "The number of events to cache when paging through history."
+                 , value 20
+                 , showDefault
+                 ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid history buffer size value, should be a number."
+        Just value
+          | value >= 0 -> Right value
+          | otherwise -> Left "Read history buffer size value should be a positive number."
+
+--------------------------------------------------------------------------------
+parseCheckPointAfter :: Parser TimeSpan
+parseCheckPointAfter = fmap fromSeconds $ option (eitherReader check) go
+  where
+    go = mconcat [ long "checkpoint-after"
+                 , metavar "SECONDS"
+                 , help "The amount of time to try checkpoint after."
+                 , value 2.0
+                 , showDefault
+                 ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid checkpoint after value, should be a float number."
+        Just value
+          | value >= 0 -> Right value
+          | otherwise -> Left "Checkpoint after value should be a positive float number."
+
+--------------------------------------------------------------------------------
+parseMinCheckPointCount :: Parser Int32
+parseMinCheckPointCount = option (eitherReader check) go
+  where
+    go = mconcat [ long "min-checkpoint-count"
+                 , metavar "INTEGER"
+                 , help "The minimum number of messages to checkpoint."
+                 , value 10
+                 , showDefault
+                 ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid minimum checkpoint count value, should be a number."
+        Just value
+          | value >= 0 -> Right value
+          | otherwise -> Left "Minimum checkpoint count value should be a positive number."
+
+--------------------------------------------------------------------------------
+parseMaxCheckPointCount :: Parser Int32
+parseMaxCheckPointCount = option (eitherReader check) go
+  where
+    go = mconcat [ long "max-checkpoint-count"
+                 , metavar "INTEGER"
+                 , help "The maximum number of messages to checkpoint. If this number is reached, a checkpoint will be forced."
+                 , value 1_000
+                 , showDefault
+                 ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid maximum checkpoint count value, should be a number."
+        Just value
+          | value >= 0 -> Right value
+          | otherwise -> Left "Maximum checkpoint count value should be a positive number."
+
+--------------------------------------------------------------------------------
+parseMaxSubsCount :: Parser Int32
+parseMaxSubsCount = option (eitherReader check) go
+  where
+    go = mconcat [ long "max-subscriber-count"
+                 , metavar "INTEGER"
+                 , help "The maximum number of subscribers allowed."
+                 , value 1_000
+                 , showDefault
+                 ]
+
+    check input =
+      case readMay input of
+        Nothing -> Left "Invalid maximum subscriber count value, should be a number."
+        Just value
+          | value >= 0 -> Right value
+          | otherwise -> Left "Maximum subscriber count value should be a positive number."
+
+--------------------------------------------------------------------------------
+parseNamedConsumerStrategy :: Parser SystemConsumerStrategy
+parseNamedConsumerStrategy = option (eitherReader check) go
+  where
+    go = mconcat [ long "strategy"
+                 , metavar "STRATEGY_NAME"
+                 , help "The strategy to use for distributing events to client consumers."
+                 , value RoundRobin
+                 , showDefault
+                 ]
+
+    check "dispatch-to-single" = Right DispatchToSingle
+    check "round-robin" = Right RoundRobin
+    check "pinned" = Left "Pinned is Unsupported for the moment."
+    check other = Left [i|Unsupported [#{other} strategy.]|]

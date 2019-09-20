@@ -23,6 +23,7 @@ common deps
                , base ^>=4.12
                , bytestring
                , cabal-file-th >=0.2.6
+               , dotnet-timespan
                , eventstore
                , gitrev
                , http-client
@@ -56,6 +57,7 @@ common deps
                       QuasiQuotes
                       ScopedTypeVariables
                       StrictData
+                      FlexibleContexts
 
   ghc-options: -Wall -threaded -O2
 library
