@@ -42,6 +42,7 @@ common deps
   other-modules: Harbinger.Aeson
                  Harbinger.Command
                  Harbinger.Command.CheckConnection
+                 Harbinger.Command.CreateSub
                  Harbinger.Command.ListEvents
                  Harbinger.Command.ListStreams
                  Harbinger.Command.ListSub

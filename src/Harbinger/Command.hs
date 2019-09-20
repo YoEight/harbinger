@@ -14,6 +14,7 @@ module Harbinger.Command where
 --------------------------------------------------------------------------------
 import Data.ByteString (ByteString)
 import Data.Int (Int64, Int32)
+import Data.List (foldl1)
 import Data.List.NonEmpty (NonEmpty(..), fromList)
 import Data.String (fromString)
 import Data.String.Interpolate.IsString (i)
@@ -62,7 +63,7 @@ data ListCommand
 
 --------------------------------------------------------------------------------
 data CreateCommand
-  = CreateSub PersistentSubscriptionSettings
+  = CreateSub SubCreateArgs
   deriving Show
 
 --------------------------------------------------------------------------------
@@ -125,8 +126,10 @@ data ByTypeArgs =
 --------------------------------------------------------------------------------
 data SubCreateArgs =
   SubCreateArgs
-  deriving Show
-
+  { subCreateArgsStreamName :: Text
+  , subCreateArgsGroup :: Text
+  , subCreateArgsSettings :: PersistentSubscriptionSettings
+  } deriving Show
 
 --------------------------------------------------------------------------------
 getArgs :: IO Args
@@ -292,6 +295,10 @@ parseCommand = withCommand <|> parseVersion
           , command "list" $
               go "List specific entities in the database."
                 $ fmap List parseListCommand
+
+          , command "create" $
+              go "Create database entities."
+                $ fmap Create parseCreateCommand
           ]
 
     go desc parser =
@@ -315,6 +322,20 @@ parseListCommand =
           go "Show a persistent subscription information" parseSubListingArgs
       , command "subscriptions" $
           go "List persistent subscriptions" (pure ListSubs)
+      ]
+  where
+    go desc parser =
+      info (helper <*> parser)
+           (progDesc desc)
+
+--------------------------------------------------------------------------------
+parseCreateCommand :: Parser CreateCommand
+parseCreateCommand =
+  subparser $
+    mconcat
+      [ command "subscription" $
+          go "Create a persistent subscription" $
+            fmap CreateSub parseSubCreateArgs
       ]
   where
     go desc parser =
@@ -525,8 +546,16 @@ parseVersion = flag' Version go
                  ]
 
 --------------------------------------------------------------------------------
-parseCreateSub :: Parser PersistentSubscriptionSettings
-parseCreateSub =
+parseSubCreateArgs :: Parser SubCreateArgs
+parseSubCreateArgs =
+  SubCreateArgs
+    <$> parseStreamId
+    <*> parseGroupId
+    <*> parsePersistentSubscriptionSettings
+
+--------------------------------------------------------------------------------
+parsePersistentSubscriptionSettings :: Parser PersistentSubscriptionSettings
+parsePersistentSubscriptionSettings =
   PersistentSubscriptionSettings
     <$> parseResolveLinkTos
     <*> parseStartFrom
@@ -742,12 +771,19 @@ parseNamedConsumerStrategy = option (eitherReader check) go
   where
     go = mconcat [ long "strategy"
                  , metavar "STRATEGY_NAME"
-                 , help "The strategy to use for distributing events to client consumers."
+                 , help [i|The strategy to use for distributing events to client consumers. Possibilities: #{display choices}|]
                  , value RoundRobin
-                 , showDefault
+                 , showDefaultWith showing
                  ]
 
     check "dispatch-to-single" = Right DispatchToSingle
     check "round-robin" = Right RoundRobin
     check "pinned" = Left "Pinned is Unsupported for the moment."
     check other = Left [i|Unsupported [#{other} strategy.]|]
+
+    showing RoundRobin = "round-robin"
+    showing DispatchToSingle = "dispatch-to-single"
+
+    choices = [DispatchToSingle, RoundRobin]
+
+    display = foldl1 (\a b -> a <> ", " <> b) . fmap showing
