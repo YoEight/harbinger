@@ -1,0 +1,35 @@
+name: Debian Packaging
+
+on:
+  push:
+    tags:
+      - '*.*'
+    branch:
+      - 'master'
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+
+    - name: Install Dependencies
+      run: ./debian/install-dependencies.sh
+
+    - name: Setup Debian conf
+      run: ./debian/setup-harbinger-install.sh
+
+    - name: Build Debian Package
+      run: |
+        export PATH=$PATH:/opt/ghc/bin:/opt/cabal/bin
+        dpkg-buildpackage -b
+        ls .. | grep .deb
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ../*.deb
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
